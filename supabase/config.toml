@@ -1,0 +1,37 @@
+project_id = "moa-stamp-tour"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 17
+
+[db.seed]
+enabled = false
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173"]
+jwt_expiry = 3600
+enable_signup = true
+enable_anonymous_sign_ins = true
+
+[auth.email]
+enable_signup = false
+
+# JWT 검증은 함수에서 auth.getUser()로 수행한다. 공개 적립 API가 아니다.
+[functions.claim-stamp]
+verify_jwt = false
+
+[functions.admin-action]
+verify_jwt = false
