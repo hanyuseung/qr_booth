@@ -41,4 +41,6 @@ export const errorMessages: Record<string, string> = {
   NOT_FOUND: "행사를 찾을 수 없어요. QR이나 주소를 확인해 주세요.",
   RATE_LIMITED: "요청이 잠시 몰렸어요. 1분 후 다시 시도해 주세요.",
   INVALID_INPUT: "입력한 내용을 다시 확인해 주세요.",
+  BOOTH_CHANGED:
+    "다른 화면에서 부스가 변경되었어요. 창을 닫고 새로고침한 뒤 다시 수정해 주세요.",
 };

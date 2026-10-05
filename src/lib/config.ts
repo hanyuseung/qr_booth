@@ -2,8 +2,11 @@ export const isDemo = (import.meta.env.VITE_APP_MODE || "demo") === "demo";
 export const defaultSlug =
   import.meta.env.VITE_DEFAULT_EVENT_SLUG || "fall-festival";
 export const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
+export const publicSiteUrl = "https://boryeongculture.site";
 export function siteUrl() {
-  const configured = import.meta.env.VITE_PUBLIC_SITE_URL?.trim();
+  const configured = isDemo
+    ? undefined
+    : import.meta.env.VITE_PUBLIC_SITE_URL?.trim() || publicSiteUrl;
   const url = new URL(configured || window.location.origin);
   if (
     !["https:", "http:"].includes(url.protocol) ||

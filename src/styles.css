@@ -557,8 +557,119 @@ img {
 }
 .booth-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 17px;
+}
+.booth-thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+.completion-stamp-overlay {
+  grid-column: 1 / -1;
+  z-index: 2;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  min-width: 0;
+  min-height: 0;
+}
+.completion-stamp {
+  width: min(78%, 390px);
+  aspect-ratio: 1;
+  border: 9px double #b34236;
+  border-radius: 50%;
+  background: #fff6edc9;
+  color: #b34236;
+  box-shadow:
+    inset 0 0 0 5px #fff6ed,
+    inset 0 0 0 7px #b3423680;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  transform: rotate(-13deg);
+  animation: completion-stamp-in 450ms ease-out;
+}
+.completion-stamp strong {
+  font-size: clamp(32px, 6vw, 64px);
+  letter-spacing: 0.08em;
+}
+.completion-stamp span {
+  font-size: clamp(10px, 1.8vw, 17px);
+  letter-spacing: 0.16em;
+  font-weight: 700;
+}
+.completion-stamp svg {
+  width: 44px;
+  height: 44px;
+}
+@keyframes completion-stamp-in {
+  from {
+    opacity: 0;
+    transform: scale(1.3) rotate(-24deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(-13deg);
+  }
+}
+.button-danger {
+  background: #fff2ef;
+  color: #af4033;
+  border: 1px solid #f0d0c9;
+}
+.delete-warning {
+  color: #986358;
+  font-size: 13px;
+  line-height: 1.8;
+  margin: 15px 0 24px;
+}
+.thumbnail-preview {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.thumbnail-preview img {
+  width: 88px;
+  height: 88px;
+  object-fit: cover;
+  border-radius: 16px;
+}
+.site-qr-actions {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+.admin-page .section-heading {
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.admin-page .button-row {
+  flex-wrap: wrap;
+}
+@media (max-width: 720px) {
+  .admin-page .section-heading > .button-row {
+    width: 100%;
+  }
+  .admin-booth-row {
+    flex-wrap: wrap;
+  }
+  .admin-booth-row > .button-row {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .completion-stamp {
+    gap: 8px;
+    border-width: 7px;
+  }
+  .completion-stamp svg {
+    width: 30px;
+    height: 30px;
+  }
 }
 .booth-card {
   position: relative;

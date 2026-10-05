@@ -28,6 +28,7 @@ export interface Booth {
   color: string;
   sort_order: number;
   is_active: boolean;
+  thumbnail_path?: string | null;
 }
 export interface Stamp {
   id: string;

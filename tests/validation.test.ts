@@ -3,8 +3,26 @@ import {
   parseBooth,
   parseClaim,
   parseEvent,
+  parseThumbnail,
 } from "../supabase/functions/_shared/validation";
 describe("untrusted API input", () => {
+  it("checks WebP bytes and size, and distinguishes keep from remove", () => {
+    expect(parseThumbnail(undefined)).toBeUndefined();
+    expect(parseThumbnail(null)).toBeNull();
+    const webp =
+      "data:image/webp;base64,UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA";
+    expect(parseThumbnail(webp)).toBeInstanceOf(Uint8Array);
+    for (const value of [
+      "",
+      "data:image/png;base64,AAAA",
+      "data:image/webp;base64,AAAA",
+      "data:image/webp;base64,!bad",
+      123,
+      webp.slice(0, -4),
+      "data:image/webp;base64," + "A".repeat(350000),
+    ])
+      expect(() => parseThumbnail(value)).toThrow();
+  });
   it("accepts only a valid event and random QR token, ignoring spoofed identity", () => {
     const parsed = parseClaim({
       slug: "fall-festival",

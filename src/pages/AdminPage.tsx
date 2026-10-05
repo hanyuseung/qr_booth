@@ -14,13 +14,16 @@ import {
   RefreshCw,
   Settings2,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import { api } from "../lib/api";
 import { defaultSlug, isDemo, qrUrl, turnstileSiteKey } from "../lib/config";
 import { Turnstile } from "../components/Turnstile";
+import { SiteQrDialog } from "../components/SiteQrDialog";
+import { prepareThumbnail, thumbnailUrl } from "../lib/thumbnail";
 import { localInputDate, messageOf } from "../lib/helpers";
 import {
-  BoothSymbol,
+  BoothVisual,
   Dialog,
   ErrorNotice,
   icons,
@@ -44,6 +47,11 @@ export function AdminPage() {
   const [boothEditor, setBoothEditor] = useState<Booth | "new" | null>(null);
   const [qrBooth, setQrBooth] = useState<Booth | null>(null);
   const [busyBooth, setBusyBooth] = useState("");
+  const [deleteBooth, setDeleteBooth] = useState<Booth | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [siteQr, setSiteQr] = useState(false);
   const load = useCallback(async () => {
     try {
       setData(await api.admin());
@@ -82,6 +90,24 @@ export function AdminPage() {
       setError(messageOf(err));
     } finally {
       setBusyBooth("");
+    }
+  };
+  const generateAll = async () => {
+    if (generating || !data?.event) return;
+    setGenerating(true);
+    setError("");
+    try {
+      qrUrl(data.event.slug, "validation");
+      const result = await api.generateAllQr(data.event.id);
+      await saved(
+        result.generated
+          ? `${result.generated}개 부스의 QR을 생성했어요. 전체 QR 인쇄에서 확인하세요.`
+          : "모든 운영 부스에 QR이 준비되어 있어요.",
+      );
+    } catch (err) {
+      setError(messageOf(err));
+    } finally {
+      setGenerating(false);
     }
   };
   if (authenticated === null)
@@ -150,6 +176,15 @@ export function AdminPage() {
             </div>
             <div className="button-row">
               {data.event && (
+                <button
+                  className="button button-secondary"
+                  onClick={() => setSiteQr(true)}
+                >
+                  <QrCode size={16} />
+                  사이트 접속 QR
+                </button>
+              )}
+              {data.event && (
                 <Link
                   className="button button-secondary"
                   to={`/e/${data.event.slug}`}
@@ -198,6 +233,18 @@ export function AdminPage() {
                     <h2>부스와 QR 관리</h2>
                   </div>
                   <div className="button-row">
+                    <button
+                      className="button button-secondary"
+                      disabled={
+                        generating ||
+                        Boolean(busyBooth) ||
+                        !data.booths.some((b) => b.is_active)
+                      }
+                      onClick={() => void generateAll()}
+                    >
+                      <QrCode size={16} />
+                      {generating ? "생성 중…" : "부스별 QR 일괄 생성"}
+                    </button>
                     <Link
                       className="button button-secondary"
                       to={`/admin/print/${data.event.slug}`}
@@ -222,7 +269,7 @@ export function AdminPage() {
                   {data.booths.map((booth) => (
                     <article className="admin-booth-row" key={booth.id}>
                       <span className={`booth-icon color-${booth.color}`}>
-                        <BoothSymbol icon={booth.icon} size={25} />
+                        <BoothVisual booth={booth} size={25} />
                       </span>
                       <div className="admin-booth-info">
                         <h3>
@@ -249,12 +296,24 @@ export function AdminPage() {
                         </button>
                         <button
                           className="button button-secondary"
-                          disabled={busyBooth === booth.id}
+                          disabled={Boolean(busyBooth) || generating}
                           onClick={() => void openQr(booth)}
                           aria-label={`${booth.name} QR`}
                         >
                           <QrCode size={16} />
                           {busyBooth === booth.id ? "준비 중" : "QR"}
+                        </button>
+                        <button
+                          className="button button-danger"
+                          aria-label={`${booth.name} 삭제`}
+                          disabled={generating || Boolean(busyBooth)}
+                          onClick={() => {
+                            setDeleteError("");
+                            setDeleteBooth(booth);
+                          }}
+                        >
+                          <Trash2 size={15} />
+                          <span className="desktop-only">삭제</span>
                         </button>
                       </div>
                     </article>
@@ -279,6 +338,58 @@ export function AdminPage() {
                 void saved("행사 설정을 저장했어요.");
               }}
             />
+          )}
+          {siteQr && data.event && (
+            <SiteQrDialog
+              slug={data.event.slug}
+              onClose={() => setSiteQr(false)}
+            />
+          )}
+          {deleteBooth && (
+            <Dialog
+              title="부스 삭제"
+              onClose={() => {
+                if (!deleting) setDeleteBooth(null);
+              }}
+            >
+              <p>
+                <strong>{deleteBooth.name}</strong> 부스를 삭제할까요?
+              </p>
+              <p className="delete-warning">
+                이 부스의 QR과 참가자 방문 기록도 함께 삭제되며 복구할 수
+                없어요. 수집 목표와 전체 완료 기준도 바뀌어요.
+              </p>
+              {deleteError && <ErrorNotice message={deleteError} />}
+              <div className="button-row">
+                <button
+                  className="button button-secondary"
+                  disabled={deleting}
+                  onClick={() => setDeleteBooth(null)}
+                >
+                  취소
+                </button>
+                <button
+                  className="button button-danger"
+                  disabled={deleting}
+                  onClick={async () => {
+                    setDeleting(true);
+                    setDeleteError("");
+                    try {
+                      await api.deleteBooth(deleteBooth.id);
+                      setDeleteBooth(null);
+                      await saved("부스와 연결된 QR·방문 기록을 삭제했어요.");
+                    } catch (err) {
+                      setDeleteError(messageOf(err));
+                    } finally {
+                      setDeleting(false);
+                    }
+                  }}
+                >
+                  <Trash2 size={16} />
+                  {deleting ? "삭제 중…" : "부스 삭제하기"}
+                </button>
+              </div>
+            </Dialog>
           )}
           {boothEditor && data.event && (
             <BoothEditor
@@ -547,8 +658,15 @@ function BoothEditor({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [thumbnail, setThumbnail] = useState<string | null | undefined>(
+    undefined,
+  );
+  const [converting, setConverting] = useState(false);
+  const preview =
+    thumbnail === undefined ? thumbnailUrl(booth?.thumbnail_path) : thumbnail;
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (busy || converting) return;
     const values = new FormData(e.currentTarget);
     const input: BoothInput = {
       id: booth?.id,
@@ -568,7 +686,7 @@ function BoothEditor({
     setBusy(true);
     setError("");
     try {
-      await api.saveBooth(input);
+      await api.saveBooth(input, thumbnail);
       onSaved();
     } catch (err) {
       setError(messageOf(err));
@@ -577,7 +695,12 @@ function BoothEditor({
     }
   };
   return (
-    <Dialog title={booth ? "부스 수정" : "새로운 부스"} onClose={onClose}>
+    <Dialog
+      title={booth ? "부스 수정" : "새로운 부스"}
+      onClose={() => {
+        if (!busy && !converting) onClose();
+      }}
+    >
       <form className="editor-form" onSubmit={submit}>
         <label>
           부스명
@@ -606,6 +729,45 @@ function BoothEditor({
             placeholder="예: 중앙 광장 A-01"
           />
         </label>
+        <label>
+          썸네일 사진
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            disabled={busy || converting}
+            onChange={async (e) => {
+              const file = e.currentTarget.files?.[0];
+              e.currentTarget.value = "";
+              if (!file) return;
+              setConverting(true);
+              setError("");
+              try {
+                setThumbnail(await prepareThumbnail(file));
+              } catch (err) {
+                setError(messageOf(err));
+              } finally {
+                setConverting(false);
+              }
+            }}
+          />
+        </label>
+        <p className="field-hint">
+          JPG·PNG·WebP, 최대 10MB. 사진은 최대 512px의 작은 WebP로 저장돼요.
+        </p>
+        {converting && <p role="status">사진을 WebP로 변환하는 중이에요…</p>}
+        {preview && (
+          <div className="thumbnail-preview">
+            <img src={preview} alt="썸네일 미리보기" />
+            <button
+              type="button"
+              className="button button-secondary"
+              disabled={busy || converting}
+              onClick={() => setThumbnail(null)}
+            >
+              사진 제거
+            </button>
+          </div>
+        )}
         <div className="form-grid">
           <label>
             아이콘
@@ -670,7 +832,10 @@ function BoothEditor({
           비활성화한 부스의 방문 기록은 보존되며, 수집 목표에서는 제외돼요.
         </p>
         {error && <ErrorNotice message={error} />}
-        <button className="button button-primary full-width" disabled={busy}>
+        <button
+          className="button button-primary full-width"
+          disabled={busy || converting}
+        >
           <Check size={17} />
           {busy ? "저장 중…" : "부스 저장"}
         </button>
@@ -757,6 +922,12 @@ function QrDialog({
           >
             QR 링크 확인 <ArrowUpRight size={14} />
           </a>
+          <Link
+            className="button button-secondary full-width"
+            to={`/admin/print/${event.slug}?booth=${encodeURIComponent(booth.id)}`}
+          >
+            <Printer size={16} />이 부스 QR 인쇄
+          </Link>
         </>
       )}
       {confirm ? (

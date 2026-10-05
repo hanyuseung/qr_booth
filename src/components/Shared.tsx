@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   ArrowUpRight,
@@ -17,7 +17,29 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { defaultSlug, isDemo } from "../lib/config";
-import type { BoothIcon } from "../types";
+import type { Booth, BoothIcon } from "../types";
+import { thumbnailUrl } from "../lib/thumbnail";
+
+export function BoothVisual({
+  booth,
+  size = 30,
+}: {
+  booth: Booth;
+  size?: number;
+}) {
+  const [failed, setFailed] = useState("");
+  const url = thumbnailUrl(booth.thumbnail_path);
+  return url && failed !== url ? (
+    <img
+      className="booth-thumbnail"
+      src={url}
+      alt={`${booth.name} 썸네일`}
+      onError={() => setFailed(url)}
+    />
+  ) : (
+    <BoothSymbol icon={booth.icon} size={size} />
+  );
+}
 
 export const icons = {
   coffee: Coffee,

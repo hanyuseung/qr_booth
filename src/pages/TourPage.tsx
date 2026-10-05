@@ -22,7 +22,7 @@ import {
   messageOf,
 } from "../lib/helpers";
 import {
-  BoothSymbol,
+  BoothVisual,
   Dialog,
   ErrorNotice,
   Loading,
@@ -232,10 +232,14 @@ export function TourPage() {
                 key={booth.id}
                 className={`booth-card ${stamp ? "is-stamped" : ""} ${highlighted === booth.id ? "just-stamped" : ""}`}
                 data-testid={`booth-${booth.id}`}
+                style={{
+                  gridColumn: (index % 2) + 1,
+                  gridRow: Math.floor(index / 2) + 1,
+                }}
               >
                 <div className="booth-card-top">
                   <span className={`booth-icon color-${booth.color}`}>
-                    <BoothSymbol icon={booth.icon} />
+                    <BoothVisual booth={booth} />
                   </span>
                   <span className="booth-number">
                     {String(data.booths.indexOf(booth) + 1).padStart(2, "0")}
@@ -277,6 +281,23 @@ export function TourPage() {
               </article>
             );
           })}
+          {complete && filtered.length > 0 && (
+            <div
+              className="completion-stamp-overlay"
+              style={{
+                gridRow: `1 / ${Math.min(2, Math.ceil(filtered.length / 2)) + 1}`,
+              }}
+              role="status"
+              aria-label="모든 부스 방문 완료 도장"
+            >
+              <div className="completion-stamp">
+                <span>보령의 순간을 모아</span>
+                <Trophy aria-hidden="true" />
+                <strong>전체 완료</strong>
+                <span>모든 부스 방문 인증</span>
+              </div>
+            </div>
+          )}
         </div>
         {filtered.length === 0 && (
           <div className="empty-state">

@@ -3,6 +3,7 @@ import {
   type SupabaseClient,
   type User,
 } from "npm:@supabase/supabase-js@2.117.2";
+import { corsHeaders } from "npm:@supabase/supabase-js@2.117.2/cors";
 import { object, RequestError } from "./validation.ts";
 
 type Handler = (
@@ -10,7 +11,11 @@ type Handler = (
   db: SupabaseClient,
   user: User,
 ) => Promise<unknown>;
-export function endpoint(handler: Handler, adminOnly = false) {
+export function endpoint(
+  handler: Handler,
+  adminOnly = false,
+  maxBodyBytes = 16384,
+) {
   return async (req: Request): Promise<Response> => {
     const origin = req.headers.get("origin");
     const allowed = (Deno.env.get("ALLOWED_ORIGINS") || "")
@@ -22,7 +27,7 @@ export function endpoint(handler: Handler, adminOnly = false) {
       "Cache-Control": "no-store",
       Vary: "Origin",
       "Access-Control-Allow-Headers":
-        "authorization, apikey, content-type, x-client-info",
+        corsHeaders["Access-Control-Allow-Headers"],
       "Access-Control-Allow-Methods": "POST, OPTIONS",
     };
     const respond = (body: unknown, status: number) =>
@@ -62,10 +67,11 @@ export function endpoint(handler: Handler, adminOnly = false) {
       }
       if (!req.headers.get("content-type")?.includes("application/json"))
         throw new RequestError("INVALID_INPUT", 400);
-      if (Number(req.headers.get("content-length") || 0) > 16384)
+      if (Number(req.headers.get("content-length") || 0) > maxBodyBytes)
         throw new RequestError("INVALID_INPUT", 413);
       const raw = await req.text();
-      if (raw.length > 16384) throw new RequestError("INVALID_INPUT", 413);
+      if (new TextEncoder().encode(raw).length > maxBodyBytes)
+        throw new RequestError("INVALID_INPUT", 413);
       let body: Record<string, unknown>;
       try {
         body = object(JSON.parse(raw));

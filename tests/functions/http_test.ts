@@ -85,6 +85,70 @@ Deno.test("GET and preflight cannot invoke an action", async () => {
     assert(!invoked && calls.length === 0);
   });
 });
+Deno.test(
+  "preflight permits SDK retry and trace headers without widening origins",
+  async () => {
+    await withAuth({}, async (calls) => {
+      const handler = endpoint(async () => {
+        throw new Error("Preflight must not execute an action");
+      }, true);
+      const requestedHeaders = [
+        "authorization",
+        "apikey",
+        "content-type",
+        "x-client-info",
+        "x-retry-count",
+        "traceparent",
+        "tracestate",
+        "baggage",
+      ];
+      const response = await handler(
+        new Request("https://api.example.com/functions/v1/admin-action", {
+          method: "OPTIONS",
+          headers: {
+            origin,
+            "access-control-request-method": "POST",
+            "access-control-request-headers": requestedHeaders.join(","),
+          },
+        }),
+      );
+      assert(response.status === 204);
+      const allowedHeaders = response.headers
+        .get("access-control-allow-headers")!
+        .split(",")
+        .map((value) => value.trim().toLowerCase());
+      for (const name of requestedHeaders)
+        assert(
+          allowedHeaders.includes(name),
+          `Missing allowed header: ${name}`,
+        );
+      assert(!allowedHeaders.includes("x-untrusted-header"));
+      assert(response.headers.get("access-control-allow-origin") === origin);
+      assert(
+        response.headers.get("access-control-allow-methods") ===
+          "POST, OPTIONS",
+      );
+      assert(calls.length === 0);
+    });
+  },
+);
+Deno.test(
+  "authentication failures remain readable by the allowed browser origin",
+  async () => {
+    await withAuth({ valid: false }, async () => {
+      const handler = endpoint(async () => ({}), true);
+      const response = await handler(request());
+      assert(response.status === 401);
+      assert(response.headers.get("access-control-allow-origin") === origin);
+      assert(
+        response.headers
+          .get("access-control-allow-headers")!
+          .includes("x-retry-count"),
+      );
+      assert((await response.json()).code === "UNAUTHORIZED");
+    });
+  },
+);
 Deno.test("missing and invalid JWTs never reach business logic", async () => {
   await withAuth({ valid: false }, async () => {
     const handler = endpoint(async () => {

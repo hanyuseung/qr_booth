@@ -172,10 +172,30 @@ export const api = {
       ? demo.saveEvent(event)
       : invoke<void>(admin!, "admin-action", { action: "save-event", event });
   },
-  async saveBooth(booth: BoothInput) {
+  async saveBooth(booth: BoothInput, thumbnail?: string | null) {
     return isDemo
-      ? demo.saveBooth(booth)
-      : invoke<void>(admin!, "admin-action", { action: "save-booth", booth });
+      ? demo.saveBooth(booth, thumbnail)
+      : invoke<void>(admin!, "admin-action", {
+          action: "save-booth",
+          booth,
+          thumbnail,
+        });
+  },
+  async deleteBooth(boothId: string) {
+    return isDemo
+      ? demo.deleteBooth(boothId)
+      : invoke<void>(admin!, "admin-action", {
+          action: "delete-booth",
+          booth_id: boothId,
+        });
+  },
+  async generateAllQr(eventId: string): Promise<{ generated: number }> {
+    return isDemo
+      ? demo.generateAllQr(eventId)
+      : invoke(admin!, "admin-action", {
+          action: "generate-all-qr",
+          event_id: eventId,
+        });
   },
   async rotateQr(boothId: string) {
     return isDemo

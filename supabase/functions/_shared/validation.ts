@@ -28,6 +28,32 @@ export function uuid(value: unknown) {
     throw new RequestError("INVALID_INPUT", 400);
   return result;
 }
+export function parseThumbnail(value: unknown): Uint8Array | null | undefined {
+  if (value === undefined || value === null) return value;
+  if (
+    typeof value !== "string" ||
+    value.length > 350000 ||
+    !value.startsWith("data:image/webp;base64,")
+  )
+    throw new RequestError("INVALID_INPUT", 400);
+  let bytes: Uint8Array;
+  try {
+    bytes = Uint8Array.from(atob(value.slice(23)), (c) => c.charCodeAt(0));
+  } catch {
+    throw new RequestError("INVALID_INPUT", 400);
+  }
+  const header = new TextDecoder().decode(bytes.slice(0, 16));
+  if (
+    bytes.length < 20 ||
+    bytes.length > 262144 ||
+    header.slice(0, 4) !== "RIFF" ||
+    header.slice(8, 12) !== "WEBP" ||
+    !["VP8 ", "VP8L", "VP8X"].includes(header.slice(12, 16)) ||
+    new DataView(bytes.buffer).getUint32(4, true) !== bytes.length - 8
+  )
+    throw new RequestError("INVALID_INPUT", 400);
+  return bytes;
+}
 function oneOf(value: unknown, allowed: string[]) {
   if (typeof value !== "string" || !allowed.includes(value))
     throw new RequestError("INVALID_INPUT", 400);

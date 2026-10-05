@@ -178,12 +178,45 @@ export const demo = {
       state.event = { ...input, id: state.event?.id || crypto.randomUUID() };
     });
   },
-  async saveBooth(input: BoothInput) {
+  async saveBooth(input: BoothInput, thumbnail?: string | null) {
     return mutate((state) => {
       const booth = { ...input, id: input.id || crypto.randomUUID() };
       const index = state.booths.findIndex((b) => b.id === booth.id);
+      booth.thumbnail_path =
+        thumbnail === undefined
+          ? state.booths[index]?.thumbnail_path
+          : thumbnail;
       if (index < 0) state.booths.push(booth);
       else state.booths[index] = booth;
+    });
+  },
+  async deleteBooth(boothId: string) {
+    return mutate((state) => {
+      state.booths = state.booths.filter((b) => b.id !== boothId);
+      state.qrCodes = state.qrCodes.filter((q) => q.booth_id !== boothId);
+      state.stamps = state.stamps.filter((s) => s.booth_id !== boothId);
+    });
+  },
+  async generateAllQr(eventId: string) {
+    return mutate((state) => {
+      let generated = 0;
+      for (const booth of state.booths.filter(
+        (b) => b.event_id === eventId && b.is_active,
+      )) {
+        if (state.qrCodes.some((q) => q.booth_id === booth.id && q.is_active))
+          continue;
+        state.qrCodes.push({
+          id: crypto.randomUUID(),
+          booth_id: booth.id,
+          token:
+            crypto.randomUUID().replaceAll("-", "") +
+            crypto.randomUUID().replaceAll("-", ""),
+          is_active: true,
+          created_at: new Date().toISOString(),
+        });
+        generated++;
+      }
+      return { generated };
     });
   },
   async rotateQr(boothId: string) {

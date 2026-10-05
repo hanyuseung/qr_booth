@@ -1,8 +1,33 @@
 # Supabase 연결과 Vercel 배포
 
-배포 주소는 **https://qr-booth.vercel.app**이다. 프론트엔드는 Vercel, 데이터베이스·인증·적립 API는 Supabase를 사용한다.
+운영 주소는 **https://boryeongculture.site**이며 현재 `www.boryeongculture.site`로 이동해 열린다. 기존 **https://qr-booth.vercel.app**도 유지된다. 프론트엔드는 Vercel, 데이터베이스·인증·적립 API는 Supabase를 사용한다.
 
-## 현재 상태와 이어서 할 일
+도메인 설정은 [새 도메인 연결 안내](DOMAIN.md)에 정리했다.
+
+## 2026-10-05 추가 기능 배포
+
+- [x] `202610050001_booth_management.sql` 운영 DB 적용: 썸네일 경로, 부스 삭제 시 QR·방문 기록 정리, 기존 토큰을 보존하는 QR 일괄 생성 함수
+- [x] `202610050002_thumbnail_storage.sql` 운영 DB 적용: 공개 읽기용 `booth-thumbnails` 버킷, WebP만 허용, 최대 256KiB
+- [x] 변경된 `admin-action` Edge Function 배포
+- [ ] 이번 프론트엔드 코드를 Vercel Production에 배포
+
+**현재 Supabase 변경은 적용 완료이며 Vercel 프론트엔드 배포만 남았다.** 이 환경에는 Vercel 로그인 정보가 없어 Vercel 배포를 실행하지 않았다. 변경 코드를 연결된 Git 저장소에 올려 배포하거나, Vercel CLI로 이 프로젝트를 배포한다. 기존 배포에서 Redeploy만 누르면 아직 Git에 올리지 않은 로컬 코드는 포함되지 않는다.
+
+Vercel의 Production 환경 변수 `VITE_PUBLIC_SITE_URL`을 `https://boryeongculture.site`로 설정한다. `.env.vercel.local`에도 같은 값을 준비했다. 이 파일에는 공개용 키가 있으므로 저장소에 커밋하지 않는다.
+
+배포 후 `/admin`에서 다음을 확인한다.
+
+1. 수정·QR 옆 **삭제** 버튼과 삭제 확인창. 실제 삭제는 테스트 부스에서만 확인한다.
+2. **부스별 QR 일괄 생성** → QR이 없는 운영 부스만 발급 → 전체 QR 인쇄. 기존 인쇄 QR은 유지된다.
+3. **사이트 접속 QR** → `boryeongculture.site` 링크 확인·PNG 다운로드·안내문 인쇄. 이 QR 자체는 방문 스탬프를 적립하지 않는다.
+4. 부스 수정 → **썸네일 사진** 업로드 → 저장. 브라우저가 JPG·PNG·WebP(원본 최대 10MB)를 최대 512px WebP로 변환한다. DB에는 파일 경로만 저장된다.
+5. 모든 운영 부스 방문 후 참가자 화면의 첫 4개 카드 위에 전체 완료 도장이 보이는지 확인한다.
+
+사진 저장 실패 시 새 업로드를 정리하고 기존 사진을 보존한다. 사진 교체·삭제 후 Storage 정리에 일시적인 오류가 나면 기능 저장 자체는 완료되며 함수 로그에 `Thumbnail cleanup failed`가 남는다. 이 경우 참조되지 않는 파일은 Storage에서 별도로 정리할 수 있다. 참가자는 사진 업로드·삭제 권한이 없으며 운영자 API에서만 처리한다. [Supabase 공개 버킷 및 접근 제어](https://supabase.com/docs/guides/storage/buckets/fundamentals)
+
+검증: TypeScript·운영용 빌드, 단위/DB 테스트 25개, 함수 테스트 16개, 데스크톱·모바일 브라우저 테스트 22개 통과. 운영 API에서는 새 컬럼 조회(200), 두 도메인의 CORS 사전 요청(204), 비로그인 운영자 조회 거부(401)를 확인했다. 실제 운영 데이터의 삭제·방문 적립은 실행하지 않았다.
+
+## 최초 설치 상태와 기본 절차
 
 2026-10-05 기준:
 
@@ -13,10 +38,10 @@
 - [x] Vercel 빌드·QR 하위 경로·응답 헤더 설정 (`vercel.json`)
 - [x] 로컬 `.env.local`의 실제 연결 모드 전환 및 `.env.vercel.local` 준비
 - [ ] 운영자 계정 등록 확인 (3번)
-- [ ] Vercel에 환경 변수 입력 후 프론트엔드 배포 (6번)
+- [x] 기존 프론트엔드 Vercel 배포 및 도메인 연결 확인 (이번 추가 기능은 위 배포 상태 참고)
 - [ ] 운영자 로그인 → 행사·부스 등록 → QR 첫 스캔 확인 (7번)
 
-**2번까지 진행했다면 다시 DB를 적용할 필요 없이 3번과 6번부터 진행하면 된다.** 4번 함수 배포는 이미 완료했다. Vercel 계정은 이 작업 환경에 로그인되어 있지 않아 실제 프론트엔드 배포는 아직 실행하지 않았다.
+현재 연결된 Supabase에는 신규 마이그레이션까지 적용했다. 별도 프로젝트에 설치하는 경우 아래 DB·함수 배포 절차를 모두 진행한다.
 
 이번 첫 배포 테스트는 **CAPTCHA OFF**, `VITE_TURNSTILE_SITE_KEY`는 비운 상태로 진행한다. 공개 행사 운영 전에는 아래 설명을 참고해 CAPTCHA와 가입 제한을 설정한다.
 
@@ -25,7 +50,7 @@
 1. Supabase에서 프로젝트를 만든다.
 2. 프로젝트 URL과 공개용 **publishable key**를 확인한다.
 3. Auth 설정에서 **Anonymous Sign-Ins**를 활성화한다. 익명 가입을 위해 전역 사용자 가입을 허용하되, 이메일 계정의 공개 가입은 비활성화하고 운영자 계정은 대시보드에서 생성한다.
-4. Supabase의 **Authentication → URL Configuration → Site URL**을 `https://qr-booth.vercel.app`으로 설정한다. 리디렉션 허용 주소에도 이 주소를 등록한다.
+4. Supabase의 **Authentication → URL Configuration → Site URL**을 `https://boryeongculture.site`로 설정한다. 리디렉션 허용 주소에도 이 주소를 등록한다.
 5. 첫 배포 테스트에서는 CAPTCHA를 끄고 진행할 수 있다. 아래의 가입 제한과 CAPTCHA 설명은 실제 행사 운영 전에 적용한다.
 
 ### 공인 IP 공유와 가입 제한은 무슨 뜻인가?
@@ -94,7 +119,7 @@ on conflict do nothing;
 허용할 프론트엔드 출처를 먼저 등록하고 함수를 배포한다.
 
 ```bash
-npx supabase secrets set ALLOWED_ORIGINS=https://qr-booth.vercel.app,http://localhost:5173,http://127.0.0.1:5173
+npx supabase secrets set ALLOWED_ORIGINS=https://boryeongculture.site,https://www.boryeongculture.site,https://qr-booth.vercel.app,http://localhost:5173,http://127.0.0.1:5173
 npm run functions:deploy
 ```
 
@@ -121,7 +146,7 @@ VITE_APP_MODE=live
 VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
 VITE_DEFAULT_EVENT_SLUG=fall-festival
-VITE_PUBLIC_SITE_URL=https://qr-booth.vercel.app
+VITE_PUBLIC_SITE_URL=https://boryeongculture.site
 VITE_TURNSTILE_SITE_KEY=
 ```
 
@@ -145,7 +170,7 @@ npm run dev
 4. Build Command는 `npm run build`, Output Directory는 `dist`, Install Command는 `npm ci`다. 저장소의 `vercel.json`에도 설정되어 있다. Node.js는 **24.x**로 설정한다.
 5. **Environment Variables**에서 아래 값을 등록한다. 새 프로젝트 화면의 **Import .env**가 있다면 작업 폴더의 `.env.vercel.local`을 가져올 수 있다. 이 파일에는 이번 사이트에 필요한 `VITE_` 변수만 들어 있다. 없으면 표대로 직접 입력한다.
 6. **Deploy**를 누른다. 기존 프로젝트의 변수를 바꾼 경우 **Redeploy**한다. Vite 환경 변수는 빌드할 때 반영된다.
-7. **Settings → Domains**에서 실제 배정 주소가 `qr-booth.vercel.app`인지 확인한다. 다른 주소가 배정되면 인쇄 전에 프로젝트 도메인·`VITE_PUBLIC_SITE_URL`·`ALLOWED_ORIGINS`를 일치시켜야 한다.
+7. **Settings → Domains**에서 `boryeongculture.site`와 `www.boryeongculture.site`의 연결을 확인한다. 인쇄 전에 QR 기준 주소와 최종 접속 주소가 모두 정상으로 열리는지 확인한다.
 
 | 변수                            | 이번 배포 값                     |
 | ------------------------------- | -------------------------------- |
@@ -153,14 +178,14 @@ npm run dev
 | `VITE_SUPABASE_URL`             | `.env.local`의 기존 프로젝트 URL |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | `.env.local`의 기존 공개용 키    |
 | `VITE_DEFAULT_EVENT_SLUG`       | `fall-festival`                  |
-| `VITE_PUBLIC_SITE_URL`          | `https://qr-booth.vercel.app`    |
+| `VITE_PUBLIC_SITE_URL`          | `https://boryeongculture.site`   |
 | `VITE_TURNSTILE_SITE_KEY`       | 등록하지 않거나 빈 값            |
 
 최소한 **Production** 환경에 등록한다. Preview 빌드도 만들 계획이라면 필수 변수는 Preview에도 등록하되, API 기능 테스트는 허용된 실제 운영 주소에서 한다. 참가자가 Vercel 로그인 없이 접근할 수 있는지도 시크릿 창에서 확인한다.
 
 Vercel은 `public/_redirects`나 `public/_headers` 대신 **`vercel.json`**을 사용한다. 이 파일에 SPA 경로 재작성과 응답 헤더를 넣었으므로 `/admin`, `/e/fall-festival`, QR 하위 경로를 직접 열거나 새로고침해도 앱이 열린다. [Vercel의 Vite 배포 안내](https://vercel.com/docs/frameworks/frontend/vite)
 
-배포 후 먼저 **https://qr-booth.vercel.app/admin**에서 로그인한다. 아직 공개 행사가 없으므로 참가자 첫 화면에 “행사를 찾을 수 없어요”가 나올 수 있다. 운영자 화면에서 주소 이름이 `fall-festival`인 행사를 생성하고 공개하면 참가자 화면이 열린다.
+배포 후 먼저 **https://boryeongculture.site/admin**에서 로그인한다. 아직 공개 행사가 없다면 참가자 첫 화면에 “행사를 찾을 수 없어요”가 나올 수 있다. 운영자 화면에서 주소 이름이 `fall-festival`인 행사를 생성하고 공개하면 참가자 화면이 열린다.
 
 참가자 모집 전에 도메인을 확정한다. 인쇄된 QR의 주소는 자동 변경되지 않고, 임시 도메인의 익명 세션도 최종 도메인으로 자동 이전되지 않는다.
 
@@ -189,6 +214,16 @@ Vercel은 `public/_redirects`나 `public/_headers` 대신 **`vercel.json`**을 �
 자동 테스트는 클라우드 설정, 실제 행사장 통신 상태, 실제 인쇄 품질까지 검증하지 않는다. 고정 QR의 링크 공유와 브라우저 변경에 따른 익명 참가자 중복 생성도 운영 정책으로 고려해야 한다.
 
 ## 9. 문제 해결
+
+### 운영자 로그인에서 CORS 오류가 보일 때
+
+1. 먼저 `https://qr-booth.vercel.app/admin`에서 접속했는지 확인한다. 별도의 Vercel Preview 주소나 다른 포트의 로컬 주소는 기본 허용 목록에 없다.
+2. `Provisional headers are shown` 표시는 원인 자체를 알려주지 않는다. Console의 실제 CORS 오류 문장과 Network에서 실패한 **Request URL**을 확인한다.
+3. `/auth/v1/token` 요청이면 Supabase Auth 로그인 단계이고, `/functions/v1/admin-action`이면 로그인 뒤 운영자 권한을 확인하는 단계다. 각각 다른 서버 설정을 사용한다.
+4. Edge Function의 OPTIONS 응답은 요청 출처와 SDK 요청 헤더를 허용해야 한다. 함수는 SDK의 `corsHeaders`에서 허용 헤더 목록만 가져오며, 허용 출처는 계속 `ALLOWED_ORIGINS`에 지정된 주소로 제한한다.
+5. 정확히 허용된 주소에서도 실패한다면 Console 오류 문장과 Request URL을 확인한다. 비밀번호, Bearer 토큰, 세션 저장소 내용은 공유하지 않는다.
+
+함수 코드 변경은 `npx supabase functions deploy claim-stamp admin-action --use-api`로 반영한다. CORS 함수만 수정했으면 Vercel 프론트엔드 재배포는 필요하지 않다. [Supabase CORS 안내](https://supabase.com/docs/guides/functions/cors)
 
 | 증상                            | 확인 사항                                                                  |
 | ------------------------------- | -------------------------------------------------------------------------- |

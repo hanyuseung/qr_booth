@@ -25,6 +25,15 @@ beforeAll(async () => {
       "utf8",
     ),
   );
+  await db.exec(
+    readFileSync(
+      new URL(
+        "../supabase/migrations/202610050001_booth_management.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
 });
 beforeEach(async () => {
   await db.exec(
@@ -60,6 +69,86 @@ async function asUser(user: string, role = "authenticated") {
   await db.exec(`set role ${role}`);
 }
 describe("stamp transactions and permissions", () => {
+  it("bulk generation preserves existing tokens and skips inactive booths on repeat requests", async () => {
+    const second = "20000000-0000-4000-8000-000000000002";
+    const inactive = "20000000-0000-4000-8000-000000000003";
+    await db.query(
+      "insert into public.booths(id,event_id,name,is_active) values($1,$3,'New',true),($2,$3,'Inactive',false)",
+      [second, inactive, eventId],
+    );
+    const candidates = JSON.stringify([
+      { booth_id: boothId, token: "b".repeat(64) },
+      { booth_id: second, token: "c".repeat(64) },
+      { booth_id: inactive, token: "d".repeat(64) },
+    ]);
+    await db.exec("set role service_role");
+    const generate = () =>
+      db.query<{ result: { generated: number } }>(
+        "select public.generate_missing_booth_qrs($1,$2::jsonb) as result",
+        [eventId, candidates],
+      );
+    expect((await generate()).rows[0].result.generated).toBe(1);
+    expect((await generate()).rows[0].result.generated).toBe(0);
+    expect((await claim()).status).toBe("claimed");
+    expect((await claim(alice, "c".repeat(64))).status).toBe("claimed");
+    expect((await claim(alice, "d".repeat(64))).code).toBe("INVALID_QR");
+    await asUser(alice);
+    await expect(generate()).rejects.toThrow(/permission denied/);
+  });
+  it("bulk generation rolls back all new QR codes if a token is invalid", async () => {
+    const second = "20000000-0000-4000-8000-000000000002";
+    const third = "20000000-0000-4000-8000-000000000003";
+    await db.query(
+      "insert into public.booths(id,event_id,name) values($1,$3,'New'),($2,$3,'Other')",
+      [second, third, eventId],
+    );
+    await expect(
+      db.query("select public.generate_missing_booth_qrs($1,$2::jsonb)", [
+        eventId,
+        JSON.stringify([
+          { booth_id: second, token: "b".repeat(64) },
+          { booth_id: third, token: "bad" },
+        ]),
+      ]),
+    ).rejects.toThrow();
+    expect(
+      (await db.query("select * from public.booth_qr_codes")).rows,
+    ).toHaveLength(1);
+    expect((await claim()).status).toBe("claimed");
+  });
+  it("booth deletion removes related visits and QR codes, but participants cannot delete", async () => {
+    await claim();
+    await asUser(alice);
+    await expect(
+      db.query("delete from public.booths where id=$1", [boothId]),
+    ).rejects.toThrow(/permission denied/);
+    await db.exec("reset role; set role service_role");
+    await db.query("delete from public.booths where id=$1", [boothId]);
+    expect(
+      (await db.query("select * from public.booth_qr_codes")).rows,
+    ).toHaveLength(0);
+    expect((await db.query("select * from public.stamps")).rows).toHaveLength(
+      0,
+    );
+    expect((await claim()).code).toBe("INVALID_QR");
+    expect((await db.query("select * from public.events")).rows).toHaveLength(
+      1,
+    );
+  });
+  it("only stores WebP object paths and rejects embedded images or external URLs", async () => {
+    await db.query("update public.booths set thumbnail_path=$1", [
+      `${eventId}/${boothId}.webp`,
+    ]);
+    for (const value of [
+      "data:image/webp;base64,AAAA",
+      "https://example.com/photo.webp",
+      `${eventId}/${boothId}.png`,
+    ]) {
+      await expect(
+        db.query("update public.booths set thumbnail_path=$1", [value]),
+      ).rejects.toThrow();
+    }
+  });
   it("persists one stamp across repeated and queued concurrent requests", async () => {
     const results = await Promise.all(
       Array.from({ length: 12 }, () => claim()),
