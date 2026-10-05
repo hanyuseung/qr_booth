@@ -1,0 +1,13 @@
+.env*
+.git
+.agents
+.codex
+.aws
+node_modules
+dist
+supabase/.temp
+supabase/.branches
+supabase/functions/.env*
+test-results
+playwright-report
+*.tsbuildinfo

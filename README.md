@@ -2,7 +2,7 @@
 
 행사 참가자가 각 부스에 부착된 QR을 스마트폰으로 스캔하면, 사이트에서 해당 부스의 방문 스탬프를 받고 수집 현황을 바로 확인하는 웹 서비스.
 
-> 현재 단계: 초기 버전 구현 완료, 로컬 검증 완료. Supabase 프로젝트 생성·운영 환경 연결·도메인 배포는 아직 진행하지 않았다.
+> 현재 단계: 초기 버전 구현·로컬 검증 완료. Supabase DB 적용과 Edge Functions 배포를 확인했으며, `qr-booth.vercel.app`으로 Vercel 배포를 준비했다. Vercel 프론트엔드 배포와 현장 검증은 남아 있다.
 
 ## 바로 실행하기
 
@@ -98,11 +98,11 @@ Linux에서 브라우저 라이브러리가 없다면 `npx playwright install-de
 | 백엔드 로직  | Supabase Edge Functions         | QR 검증, 스탬프 적립, 운영자 작업 처리   |
 | 접근 제어    | PostgreSQL RLS 및 API 권한 검사 | 본인 기록 조회와 운영자 권한 구분        |
 | QR 이미지    | qrcode                          | 부스별 QR 이미지와 인쇄 화면 생성        |
-| 웹 호스팅    | Cloudflare Pages                | 정적 파일 배포와 추후 도메인 연결        |
+| 웹 호스팅    | Vercel                          | `qr-booth.vercel.app` 정적 웹 배포       |
 
 Supabase는 오픈소스 기반 플랫폼이며, Edge Functions로 별도 애플리케이션 서버를 운영하지 않고 로직을 실행할 수 있다. 이 계획에서는 자체 설치 대신 관리형 서비스를 사용한다. 데이터베이스는 관리형 PostgreSQL이고, 사용자 정의 API 실행을 서버리스로 구성한다. [Supabase 소개](https://supabase.com/) · [Edge Functions 문서](https://supabase.com/docs/guides/functions)
 
-Cloudflare Pages는 배포용 관리형 서비스로 제안한다. 오픈소스 사용 여부와 호스팅 비용은 별개이므로, 행사 규모를 기준으로 서비스 한도와 요금제를 배포 전에 확인한다.
+웹 호스팅은 Vercel을 사용한다. 최초 배포 절차와 환경 변수는 [배포 안내](docs/DEPLOYMENT.md#6-vercel에-배포하기)에 정리했다. `vercel.json`에서 QR 하위 경로와 응답 헤더를 설정한다.
 
 ### 전체 흐름
 
@@ -201,7 +201,7 @@ flowchart LR
 
 인쇄 QR에는 도메인이 고정되므로 **최종 도메인 연결 후 운영용 QR을 출력**한다. 개발 중 생성한 QR은 테스트용으로 구분한다. 도메인이 바뀌면 브라우저의 익명 인증 세션도 자동 이전되지 않으므로, 실제 참가자 모집 전에 주소를 확정한다.
 
-도메인 연결과 직접 URL 접속 처리는 [Cloudflare Pages 커스텀 도메인](https://developers.cloudflare.com/pages/configuration/custom-domains/) 및 [페이지 제공 방식](https://developers.cloudflare.com/pages/configuration/serving-pages/) 문서를 기준으로 설정한다.
+최초 배포 주소는 `https://qr-booth.vercel.app`이다. 직접 URL 접속은 [Vercel Vite 배포 안내](https://vercel.com/docs/frameworks/frontend/vite)에 따라 `vercel.json`의 SPA rewrite로 처리한다. 별도 도메인을 연결할 경우 QR 기준 주소와 Supabase 허용 출처도 변경한다.
 
 ## 8. 단계별 개발 계획
 
@@ -219,7 +219,9 @@ flowchart LR
 - [x] 익명 인증과 기존 세션 재사용 구현
 - [x] 본인 기록 조회 정책과 중복 방지 제약 적용
 - [x] 운영자 권한 검사 및 계정 등록 절차 작성
-- [ ] Supabase 프로젝트 생성·마이그레이션 적용·운영자 계정 등록
+- [x] Supabase 프로젝트 연결·마이그레이션 적용 확인
+- [x] Edge Functions 배포 및 Vercel 주소의 API 호출 허용
+- [ ] 운영자 계정 등록 확인
 
 ### 3단계: QR 적립 흐름
 

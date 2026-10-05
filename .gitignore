@@ -3,6 +3,7 @@ dist/
 .env
 .env.*
 !.env.example
+!.env.vercel.example
 !**/.env.example
 .supabase/
 supabase/.temp/
@@ -10,3 +11,4 @@ supabase/.branches/
 playwright-report/
 test-results/
 *.tsbuildinfo
+.vercel/

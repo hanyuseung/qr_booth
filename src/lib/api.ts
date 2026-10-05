@@ -137,9 +137,17 @@ export const api = {
     if (error) throw error;
     return Boolean(data.session);
   },
-  async login(email: string, password: string) {
+  async login(email: string, password: string, captchaToken?: string) {
     if (isDemo) return;
-    const { error } = await admin!.auth.signInWithPassword({ email, password });
+    const { error } = await admin!.auth.signInWithPassword({
+      email,
+      password,
+      options: { captchaToken },
+    });
+    if (error?.code === "captcha_failed")
+      throw new Error(
+        "인증 확인에 실패했어요. 다시 인증한 뒤 로그인해 주세요.",
+      );
     if (error) throw new Error("이메일과 비밀번호를 확인해 주세요.");
     try {
       await this.admin();

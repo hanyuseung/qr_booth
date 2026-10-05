@@ -1,15 +1,56 @@
-# Supabase 연결과 운영 배포
+# Supabase 연결과 Vercel 배포
 
-현재 저장소는 로컬 체험 모드로 실행할 수 있다. 실제 Supabase 프로젝트와 도메인은 사용자가 준비한 뒤 아래 순서로 연결한다. 개발·테스트와 실제 행사는 서로 다른 Supabase 프로젝트를 사용하는 것을 권장한다.
+배포 주소는 **https://qr-booth.vercel.app**이다. 프론트엔드는 Vercel, 데이터베이스·인증·적립 API는 Supabase를 사용한다.
+
+## 현재 상태와 이어서 할 일
+
+2026-10-05 기준:
+
+- [x] Supabase 프로젝트 연결 및 데이터베이스 적용 확인
+- [x] 익명 인증 활성화 및 이메일 로그인 사용 가능 확인
+- [x] `claim-stamp`, `admin-action` 함수 배포
+- [x] `https://qr-booth.vercel.app` 및 로컬 개발 주소의 API 호출 허용
+- [x] Vercel 빌드·QR 하위 경로·응답 헤더 설정 (`vercel.json`)
+- [x] 로컬 `.env.local`의 실제 연결 모드 전환 및 `.env.vercel.local` 준비
+- [ ] 운영자 계정 등록 확인 (3번)
+- [ ] Vercel에 환경 변수 입력 후 프론트엔드 배포 (6번)
+- [ ] 운영자 로그인 → 행사·부스 등록 → QR 첫 스캔 확인 (7번)
+
+**2번까지 진행했다면 다시 DB를 적용할 필요 없이 3번과 6번부터 진행하면 된다.** 4번 함수 배포는 이미 완료했다. Vercel 계정은 이 작업 환경에 로그인되어 있지 않아 실제 프론트엔드 배포는 아직 실행하지 않았다.
+
+이번 첫 배포 테스트는 **CAPTCHA OFF**, `VITE_TURNSTILE_SITE_KEY`는 비운 상태로 진행한다. 공개 행사 운영 전에는 아래 설명을 참고해 CAPTCHA와 가입 제한을 설정한다.
 
 ## 1. Supabase 프로젝트 생성
 
 1. Supabase에서 프로젝트를 만든다.
 2. 프로젝트 URL과 공개용 **publishable key**를 확인한다.
 3. Auth 설정에서 **Anonymous Sign-Ins**를 활성화한다. 익명 가입을 위해 전역 사용자 가입을 허용하되, 이메일 계정의 공개 가입은 비활성화하고 운영자 계정은 대시보드에서 생성한다.
-4. Auth의 Site URL을 참가자 사이트 주소로 설정한다. 개발 중에는 `http://localhost:5173`, 운영 시에는 최종 HTTPS 주소를 사용한다.
-5. 실제 참가자 수와 행사장 공용 Wi-Fi 사용을 고려해 익명 가입 제한을 확인한다. 많은 참가자가 같은 공인 IP를 공유할 수 있다.
-6. 운영 시 Auth의 CAPTCHA를 활성화하고 Cloudflare Turnstile을 설정한다. 사이트 키는 프론트엔드에, 비밀 키는 Supabase Auth 설정에 입력한다. 사이트 키를 넣지 않은 개발 환경에서는 Supabase 쪽 CAPTCHA도 꺼져 있어야 한다.
+4. Supabase의 **Authentication → URL Configuration → Site URL**을 `https://qr-booth.vercel.app`으로 설정한다. 리디렉션 허용 주소에도 이 주소를 등록한다.
+5. 첫 배포 테스트에서는 CAPTCHA를 끄고 진행할 수 있다. 아래의 가입 제한과 CAPTCHA 설명은 실제 행사 운영 전에 적용한다.
+
+### 공인 IP 공유와 가입 제한은 무슨 뜻인가?
+
+공인 IP는 인터넷에서 보이는 접속 주소다. 예를 들어 행사장 Wi-Fi 하나에 100명이 연결하면, Supabase에는 여러 참가자가 같은 공인 IP에서 접속하는 것으로 보일 수 있다.
+
+Supabase 익명 가입은 기본적으로 **IP당 시간당 30회**로 제한된다. 이 제한은 스탬프 30개 제한이 아니라 **처음 참여하는 사람의 익명 계정을 만드는 요청 제한**이다. 기존 세션을 사용하는 참가자는 매 부스마다 새로 가입하지 않는다. [공식 제한 안내](https://supabase.com/docs/guides/auth/rate-limits)
+
+지금 소수 인원으로 테스트할 때는 기본값으로 시작한다. 실제 행사 전에는 **Authentication → Rate Limits → Anonymous sign-ins**에서 같은 Wi-Fi로 한 시간 동안 처음 들어올 참가자 수에 맞춰 값을 정한다. 예상 인원이 아직 없으므로 이번 작업에서 임의로 한도를 올리지 않았다. 참가자 수뿐 아니라 여러 브라우저 사용·재시도도 고려한다.
+
+### CAPTCHA는 무엇이고, 지금 꼭 필요한가?
+
+CAPTCHA는 봇이 익명 계정을 대량 생성하는 것을 줄이는 인증이다. 첫 기능 확인을 위해 반드시 켜야 하는 기능은 아니므로 **이번에는 꺼 둔 상태로 배포 테스트**한다. 공개 행사 운영에는 Supabase가 CAPTCHA 사용을 권장한다. [익명 인증 안내](https://supabase.com/docs/guides/auth/auth-anonymous)
+
+나중에 활성화할 때는 다음을 한 세트로 설정한다.
+
+1. Cloudflare 계정에서 **Turnstile → Add widget**을 열고 Managed 방식으로 생성한다. 사이트 호스팅은 계속 Vercel을 사용한다.
+2. 허용 호스트 이름에 `qr-booth.vercel.app`을 등록한다. 로컬에서도 테스트하려면 `localhost`도 추가한다.
+3. 발급된 **Site key**를 Vercel의 `VITE_TURNSTILE_SITE_KEY`에 입력하고 재배포한다.
+4. Supabase의 **Authentication → Bot and Abuse Protection → CAPTCHA protection**에서 제공자를 Turnstile로 선택하고 **Secret key**를 저장한 뒤 활성화한다.
+5. 첫 QR 접속과 운영자 로그인을 모두 확인한다. 두 화면 모두 CAPTCHA 토큰 전달을 지원한다.
+
+Supabase에서만 CAPTCHA를 켜고 프론트엔드 사이트 키를 비워 두면 인증이 실패한다. CAPTCHA를 켜도 IP별 가입 제한은 따로 적용된다. [Supabase CAPTCHA 안내](https://supabase.com/docs/guides/auth/auth-captcha)
+
+**이메일 신규 가입 차단과 이메일 로그인 기능 해제는 다르다.** 운영자 로그인에 이메일·비밀번호를 사용하므로 Email provider는 켜 두고, 일반 사용자의 신규 이메일 가입만 차단한다. 운영자는 아래 3번처럼 대시보드에서 생성한다.
 
 공개용 키는 RLS와 함께 사용하는 브라우저용 키다. `service_role` 또는 secret key를 `VITE_` 변수에 넣으면 안 된다. Edge Functions는 Supabase가 제공하는 `SUPABASE_SERVICE_ROLE_KEY`를 내부에서만 사용한다. [API 키 안내](https://supabase.com/docs/guides/getting-started/api-keys) · [익명 인증 안내](https://supabase.com/docs/guides/auth/auth-anonymous)
 
@@ -53,19 +94,19 @@ on conflict do nothing;
 허용할 프론트엔드 출처를 먼저 등록하고 함수를 배포한다.
 
 ```bash
-npx supabase secrets set ALLOWED_ORIGINS=https://stamp.example.com
+npx supabase secrets set ALLOWED_ORIGINS=https://qr-booth.vercel.app,http://localhost:5173,http://127.0.0.1:5173
 npm run functions:deploy
 ```
 
-예시 도메인은 실제 주소로 바꾼다. 개발 주소도 함께 필요하면 쉼표로 연결한다.
+허용 주소를 변경할 때는 전체 목록을 쉼표로 연결한다. Vercel이 자동 생성하는 매번 다른 Preview 주소는 허용하지 않았으므로, 이번 실제 API 확인은 `qr-booth.vercel.app`에서 진행한다.
 
 ```bash
-npx supabase secrets set ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,https://stamp.example.com
+npx supabase functions deploy claim-stamp admin-action --use-api
 ```
 
 `supabase/config.toml`의 두 함수는 `verify_jwt=false`로 설정되어 있다. 함수 내부에서 **모든 POST 요청의 Bearer JWT를 `auth.getUser()`로 검증**하고, 운영자 API는 익명 계정을 거부한 뒤 `admin_users`를 확인한다. CORS만으로 접근을 통제하지 않는다. [함수 인증 안내](https://supabase.com/docs/guides/functions/auth)
 
-적립 함수는 사용자당 1분에 최대 60회 요청을 허용한다. 유효한 형식의 잘못된 QR 요청도 집계한다. 이 제한은 익명 가입 자체의 제한을 대신하지 않으므로 Auth의 요청 제한과 CAPTCHA를 함께 설정한다.
+마지막 명령의 `--use-api`는 Docker 없이 함수를 배포하는 방법이다. 적립 함수는 사용자당 1분에 최대 60회 요청을 허용한다. 유효한 형식의 잘못된 QR 요청도 집계한다. 이 제한과 Auth의 익명 가입 제한은 서로 다른 제한이다.
 
 ## 5. 프론트엔드 환경 변수
 
@@ -73,22 +114,22 @@ npx supabase secrets set ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:
 cp .env.example .env.local
 ```
 
-`.env.local`을 다음과 같이 설정한다. 실제 키를 저장소에 커밋하지 않는다.
+기존 `.env.local`이 있다면 위 복사 명령으로 덮어쓰지 않고 필요한 값만 수정한다. 현재 작업 폴더의 `.env.local`은 이미 실제 연결 모드와 Vercel 주소로 설정했다. 예시는 다음과 같다. 실제 키를 저장소에 커밋하지 않는다.
 
 ```dotenv
 VITE_APP_MODE=live
 VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
 VITE_DEFAULT_EVENT_SLUG=fall-festival
-VITE_PUBLIC_SITE_URL=https://stamp.example.com
-VITE_TURNSTILE_SITE_KEY=YOUR_TURNSTILE_SITE_KEY
+VITE_PUBLIC_SITE_URL=https://qr-booth.vercel.app
+VITE_TURNSTILE_SITE_KEY=
 ```
 
 - `VITE_DEFAULT_EVENT_SLUG`: 운영자 화면에서 만들 행사의 주소 이름과 일치시킨다.
 - `VITE_PUBLIC_SITE_URL`: 경로·쿼리 없는 최종 도메인. 운영 모드에서는 HTTPS 주소가 있어야 QR을 생성·인쇄할 수 있다.
-- `VITE_TURNSTILE_SITE_KEY`: Supabase Auth에서 CAPTCHA를 끈 개발 환경에서만 비워 둔다.
+- `VITE_TURNSTILE_SITE_KEY`: 이번 첫 배포 테스트에서는 비운다. Supabase Auth의 CAPTCHA도 꺼 둔다.
 
-환경 변수를 바꾼 후 개발 서버를 재시작한다. 운영 모드의 프로젝트 URL이나 공개 키가 없으면 실행·빌드를 중단한다. `VITE_APP_MODE`를 생략하면 체험 모드이므로, 호스팅에도 반드시 `live` 값을 설정한다.
+환경 변수를 바꾼 후 개발 서버를 재시작한다. 운영 모드의 프로젝트 URL이나 공개 키가 없으면 실행·빌드를 중단한다. Vercel에서는 `VITE_APP_MODE=live` 또는 올바른 `VITE_PUBLIC_SITE_URL`이 빠지면 빌드를 실패시켜 체험 모드가 잘못 배포되는 것을 막는다.
 
 ```bash
 npm run dev
@@ -96,16 +137,30 @@ npm run dev
 
 `/admin`에서 운영자로 로그인하고 행사·부스를 만든다. 첫 방문 화면이 “행사를 찾을 수 없어요”인 경우 주소 이름이 일치하는 공개 행사가 아직 없는지 확인한다.
 
-## 6. Cloudflare Pages와 도메인
+## 6. Vercel에 배포하기
 
-1. 저장소를 호스팅 서비스에 연결하거나 빌드 결과물을 업로드한다.
-2. 빌드 명령은 `npm run build`, 출력 디렉터리는 `dist`, Node.js는 22.12 이상으로 설정한다.
-3. 위 `VITE_` 변수들을 호스팅의 빌드 환경에도 입력한다.
-4. 확보한 도메인을 Pages에 연결하고 HTTPS 발급을 확인한다.
-5. Supabase Auth의 Site URL, 허용 리디렉션 주소, `ALLOWED_ORIGINS`, Turnstile 허용 도메인을 최종 주소에 맞춘다.
-6. 최종 주소로 다시 빌드한 뒤 운영용 QR을 생성한다.
+1. 이번 변경 파일을 Git 저장소에 커밋하고 push한다. `.env.local`과 `.env.vercel.local`은 Git에 올리지 않는다.
+2. Vercel에서 **Add New → Project**로 `qr_booth` 저장소를 가져온다. 이미 연결한 프로젝트가 있다면 해당 프로젝트의 Settings를 연다.
+3. 프로젝트 이름은 `qr-booth`, Framework Preset은 **Vite**, Root Directory는 저장소 루트로 설정한다.
+4. Build Command는 `npm run build`, Output Directory는 `dist`, Install Command는 `npm ci`다. 저장소의 `vercel.json`에도 설정되어 있다. Node.js는 **24.x**로 설정한다.
+5. **Environment Variables**에서 아래 값을 등록한다. 새 프로젝트 화면의 **Import .env**가 있다면 작업 폴더의 `.env.vercel.local`을 가져올 수 있다. 이 파일에는 이번 사이트에 필요한 `VITE_` 변수만 들어 있다. 없으면 표대로 직접 입력한다.
+6. **Deploy**를 누른다. 기존 프로젝트의 변수를 바꾼 경우 **Redeploy**한다. Vite 환경 변수는 빌드할 때 반영된다.
+7. **Settings → Domains**에서 실제 배정 주소가 `qr-booth.vercel.app`인지 확인한다. 다른 주소가 배정되면 인쇄 전에 프로젝트 도메인·`VITE_PUBLIC_SITE_URL`·`ALLOWED_ORIGINS`를 일치시켜야 한다.
 
-`public/_redirects`가 빌드 결과에 포함되어 QR 하위 경로 직접 접속도 앱으로 연결된다. `public/_headers`에는 QR 주소의 외부 전달을 줄이는 Referrer-Policy와 기본 응답 헤더가 들어 있다. [Pages 페이지 제공 방식](https://developers.cloudflare.com/pages/configuration/serving-pages/) · [커스텀 도메인 연결](https://developers.cloudflare.com/pages/configuration/custom-domains/)
+| 변수                            | 이번 배포 값                     |
+| ------------------------------- | -------------------------------- |
+| `VITE_APP_MODE`                 | `live`                           |
+| `VITE_SUPABASE_URL`             | `.env.local`의 기존 프로젝트 URL |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | `.env.local`의 기존 공개용 키    |
+| `VITE_DEFAULT_EVENT_SLUG`       | `fall-festival`                  |
+| `VITE_PUBLIC_SITE_URL`          | `https://qr-booth.vercel.app`    |
+| `VITE_TURNSTILE_SITE_KEY`       | 등록하지 않거나 빈 값            |
+
+최소한 **Production** 환경에 등록한다. Preview 빌드도 만들 계획이라면 필수 변수는 Preview에도 등록하되, API 기능 테스트는 허용된 실제 운영 주소에서 한다. 참가자가 Vercel 로그인 없이 접근할 수 있는지도 시크릿 창에서 확인한다.
+
+Vercel은 `public/_redirects`나 `public/_headers` 대신 **`vercel.json`**을 사용한다. 이 파일에 SPA 경로 재작성과 응답 헤더를 넣었으므로 `/admin`, `/e/fall-festival`, QR 하위 경로를 직접 열거나 새로고침해도 앱이 열린다. [Vercel의 Vite 배포 안내](https://vercel.com/docs/frameworks/frontend/vite)
+
+배포 후 먼저 **https://qr-booth.vercel.app/admin**에서 로그인한다. 아직 공개 행사가 없으므로 참가자 첫 화면에 “행사를 찾을 수 없어요”가 나올 수 있다. 운영자 화면에서 주소 이름이 `fall-festival`인 행사를 생성하고 공개하면 참가자 화면이 열린다.
 
 참가자 모집 전에 도메인을 확정한다. 인쇄된 QR의 주소는 자동 변경되지 않고, 임시 도메인의 익명 세션도 최종 도메인으로 자동 이전되지 않는다.
 
@@ -143,7 +198,7 @@ npm run dev
 | 운영자 로그인 거부              | 이메일·비밀번호, 이메일 확인 상태, `admin_users`에 등록한 사용자 UUID      |
 | 적립·운영자 요청 실패           | 함수 배포, `ALLOWED_ORIGINS`, 함수 로그의 오류 코드, 사용자 인증 세션      |
 | QR 발급 시 도메인 오류          | `VITE_PUBLIC_SITE_URL`에 경로 없는 최종 HTTPS 주소 설정                    |
-| QR 직접 접속에서 404            | `dist/_redirects` 배포 및 호스팅 SPA 경로 설정                             |
+| QR 직접 접속에서 404            | 저장소 루트의 `vercel.json` 포함 여부 및 재배포                            |
 | 다른 브라우저에서 스탬프가 없음 | 익명 세션은 브라우저마다 별개이므로 처음 사용한 브라우저 확인              |
 
 ## 10. 선택: 로컬 Supabase로 통합 개발

@@ -16,7 +16,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { api } from "../lib/api";
-import { defaultSlug, isDemo, qrUrl } from "../lib/config";
+import { defaultSlug, isDemo, qrUrl, turnstileSiteKey } from "../lib/config";
+import { Turnstile } from "../components/Turnstile";
 import { localInputDate, messageOf } from "../lib/helpers";
 import {
   BoothSymbol,
@@ -318,16 +319,25 @@ export function AdminPage() {
 function Login({ onSuccess }: { onSuccess: () => void }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (busy || (turnstileSiteKey && !captchaToken)) return;
     const form = new FormData(e.currentTarget);
     setBusy(true);
     setError("");
     try {
-      await api.login(String(form.get("email")), String(form.get("password")));
+      await api.login(
+        String(form.get("email")),
+        String(form.get("password")),
+        captchaToken || undefined,
+      );
       onSuccess();
     } catch (err) {
       setError(messageOf(err));
+      setCaptchaToken("");
+      setCaptchaAttempt((attempt) => attempt + 1);
     } finally {
       setBusy(false);
     }
@@ -363,7 +373,20 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
             />
           </label>
           {error && <ErrorNotice message={error} />}
-          <button className="button button-primary full-width" disabled={busy}>
+          {turnstileSiteKey && (
+            <Turnstile
+              key={captchaAttempt}
+              onToken={setCaptchaToken}
+              onError={(message) => {
+                setCaptchaToken("");
+                setError(message);
+              }}
+            />
+          )}
+          <button
+            className="button button-primary full-width"
+            disabled={busy || Boolean(turnstileSiteKey && !captchaToken)}
+          >
             {busy ? "확인 중…" : "로그인"}
           </button>
         </form>
